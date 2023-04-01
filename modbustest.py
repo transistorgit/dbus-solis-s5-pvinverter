@@ -15,7 +15,7 @@ class s5_inverter:
     self._dbusservice = []
     self.bus = minimalmodbus.Instrument(port, slaveaddress=1)
     self.bus.serial.baudrate = 9600
-    self.bus.serial.timeout = 0.1
+    self.bus.serial.timeout = 0.3
 
     print(f"Modbus on port {port}")
 

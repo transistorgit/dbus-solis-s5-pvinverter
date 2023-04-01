@@ -45,12 +45,20 @@ class s5_inverter:
           try:
             value[4]= self.bus.read_long(value[0],4) * factor
           except minimalmodbus.NoResponseError:
-            value[4]= self.bus.read_long(value[0],4) * factor
+            try:
+              value[4]= self.bus.read_long(value[0],4) * factor
+            except minimalmodbus.NoResponseError:
+              logging.info("Modbus read failed")
+              value[4]= 0
         else:
           try:
             value[4] = self.bus.read_register(value[0],1,4) * factor
           except minimalmodbus.NoResponseError:
-            value[4] = self.bus.read_register(value[0],1,4) * factor
+            try:
+              value[4] = self.bus.read_register(value[0],1,4) * factor
+            except minimalmodbus.NoResponseError:
+              logging.info("Modbus read failed")
+              value[4]= 0
         # print(f"{key}: {value[-1]} {value[-2]}")
     return self.registers
 
@@ -92,7 +100,7 @@ class DbusDummyService:
 
     # Create the mandatory objects
     self._dbusservice.add_path('/DeviceInstance', deviceinstance)
-    self._dbusservice.add_path('/ProductId', 20) #fronius pv inverter
+    self._dbusservice.add_path('/ProductId', 16) # pv inverter?
     self._dbusservice.add_path('/ProductName', productname)
     self._dbusservice.add_path('/FirmwareVersion', 0.1)
     self._dbusservice.add_path('/HardwareVersion', 0)
@@ -125,9 +133,6 @@ class DbusDummyService:
       self._dbusservice['/Ac/L1/Power']       = f'{self.inverter.registers["A phase Current"][4]*self.inverter.registers["A phase Voltage"][4]:.0f}W'
       self._dbusservice['/Ac/L2/Power']       = f'{self.inverter.registers["B phase Current"][4]*self.inverter.registers["B phase Voltage"][4]:.0f}W'
       self._dbusservice['/Ac/L3/Power']       = f'{self.inverter.registers["C phase Current"][4]*self.inverter.registers["C phase Voltage"][4]:.0f}W'
-      self._dbusservice['/Ac/L1/Energy/Forward'] = -1
-      self._dbusservice['/Ac/L2/Energy/Forward'] = -1
-      self._dbusservice['/Ac/L3/Energy/Forward'] = -1
     except Exception as e:
       logging.info("WARNING: Could not read from Solis S5 Inverter", exc_info=sys.exc_info()[0])
       self._dbusservice['/Ac/Power'] = 0  # TODO: any better idea to signal an issue?
@@ -169,7 +174,7 @@ def main():
       pvac_output = DbusDummyService(
         port=port,
         servicename='com.victronenergy.pvinverter.solis_s5',
-        deviceinstance=0,
+        deviceinstance=333,
         paths={
           '/Ac/Power': {'initial': 0},
           '/Ac/Current': {'initial': 0},
@@ -184,9 +189,6 @@ def main():
           '/Ac/L1/Power': {'initial': 0},
           '/Ac/L2/Power': {'initial': 0},
           '/Ac/L3/Power': {'initial': 0},
-          '/Ac/L1/Energy/Forward': {'initial': 0},
-          '/Ac/L2/Energy/Forward': {'initial': 0},
-          '/Ac/L3/Energy/Forward': {'initial': 0},
           '/ErrorCode': {'initial': 0},
           '/Position': {'initial': 0},
           '/StatusCode': {'initial': 7},

@@ -1,3 +1,3 @@
 #!/bin/sh
-python /data/dbus-fronius-smartmeter/dbus-fronius-smartmeter.py
-
+exec 2>&1
+exec /opt/victronenergy/dbus-solis-s5-pvinverter/start-solis-s5-pvinverter.sh TTY

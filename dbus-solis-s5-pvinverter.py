@@ -26,15 +26,15 @@ class s5_inverter:
 
     self.registers = {
       # name        : nr , format, factor, unit
-      "Active Power": [3004, 'U32', 1, 'W'],
-      "Energy Today": [3015, 'U16', 1, 'kWh'],
-      "Energy Total": [3008, 'U32', 1, 'kWh'],
-      "A phase Voltage": [3033, 'U16', 1, 'V'],
-      "B phase Voltage": [3034, 'U16', 1, 'V'],
-      "C phase Voltage": [3035, 'U16', 1, 'V'],
-      "A phase Current": [3036, 'U16', 1, 'A'],
-      "B phase Current": [3037, 'U16', 1, 'A'],
-      "C phase Current": [3038, 'U16', 1, 'A'],
+      "Active Power": [3004, 'U32', 1, 'W', 0],
+      "Energy Today": [3015, 'U16', 1, 'kWh', 0],
+      "Energy Total": [3008, 'U32', 1, 'kWh', 0],
+      "A phase Voltage": [3033, 'U16', 1, 'V', 0],
+      "B phase Voltage": [3034, 'U16', 1, 'V', 0],
+      "C phase Voltage": [3035, 'U16', 1, 'V', 0],
+      "A phase Current": [3036, 'U16', 1, 'A', 0],
+      "B phase Current": [3037, 'U16', 1, 'A', 0],
+      "C phase Current": [3038, 'U16', 1, 'A', 0],
     }
 
 
@@ -42,16 +42,26 @@ class s5_inverter:
     for key, value in self.registers.items():
         factor = value[2]
         if value[1] == 'U32':
-          value.append( self.bus.read_long(value[0],4) * factor)
+          try:
+            value[4]= self.bus.read_long(value[0],4) * factor
+          except minimalmodbus.NoResponseError:
+            value[4]= self.bus.read_long(value[0],4) * factor
         else:
-          value.append(self.bus.read_register(value[0],1,4) * factor)
-        print(f"{key}: {value[-1]} {value[-2]}")
+          try:
+            value[4] = self.bus.read_register(value[0],1,4) * factor
+          except minimalmodbus.NoResponseError:
+            value[4] = self.bus.read_register(value[0],1,4) * factor
+        # print(f"{key}: {value[-1]} {value[-2]}")
     return self.registers
 
 
   def read_status(self):
-    status = int(self.bus.read_register(3043, 0, 4))
-    print(f'Inverter Status: {status:04X}') # 0 waiting, 3 generating
+    try:
+      status = int(self.bus.read_register(3043, 0, 4))
+    except minimalmodbus.NoResponseError:
+      status = int(self.bus.read_register(3043, 0, 4))
+    
+    # print(f'Inverter Status: {status:04X}') # 0 waiting, 3 generating
     return status
 
 
@@ -69,7 +79,7 @@ class s5_inverter:
 
 
 class DbusDummyService:
-  def __init__(self, servicename, deviceinstance, paths, productname='Solis S5 PV Inverter', connection='Solis S5 PV Inverter service'):
+  def __init__(self, port, servicename, deviceinstance, paths, productname='Solis S5 PV Inverter', connection='Solis S5 PV Inverter service'):
     self._dbusservice = VeDbusService(servicename)
     self._paths = paths
 
@@ -92,7 +102,7 @@ class DbusDummyService:
       self._dbusservice.add_path(
         path, settings['initial'], writeable=True, onchangecallback=self._handlechangedvalue)
 
-    inverter = s5_inverter()
+    self.inverter = s5_inverter(port)
 
     gobject.timeout_add(300, self._update) # pause 300ms before the next request
 
@@ -100,25 +110,26 @@ class DbusDummyService:
   def _update(self):
     try:
 
-      inverter.read_registers()
+      self.inverter.read_registers()
 
-      self._dbusservice['/Ac/Power']          = inverter.registers["Active Power"][-1]
-      self._dbusservice['/Ac/MaxPower']       = 6000
-      self._dbusservice['/Ac/Energy/Forward'] = inverter.registers["Energy Total"][-1]
-      self._dbusservice['/Ac/L1/Voltage']     = inverter.registers["A phase Voltage"][-1]
-      self._dbusservice['/Ac/L2/Voltage']     = inverter.registers["B phase Voltage"][-1]
-      self._dbusservice['/Ac/L3/Voltage']     = inverter.registers["C phase Voltage"][-1]
-      self._dbusservice['/Ac/L1/Current']     = inverter.registers["A phase Current"][-1]
-      self._dbusservice['/Ac/L2/Current']     = inverter.registers["B phase Current"][-1]
-      self._dbusservice['/Ac/L3/Current']     = inverter.registers["C phase Current"][-1]
-      self._dbusservice['/Ac/L1/Power']       = inverter.registers["A phase Current"][-1]*inverter.registers["A phase Voltage"][-1]
-      self._dbusservice['/Ac/L2/Power']       = inverter.registers["B phase Current"][-1]*inverter.registers["B phase Voltage"][-1]
-      self._dbusservice['/Ac/L3/Power']       = inverter.registers["C phase Current"][-1]*inverter.registers["C phase Voltage"][-1]
+      self._dbusservice['/Ac/Power']          = f'{self.inverter.registers["Active Power"][4]}{self.inverter.registers["Active Power"][3]}'
+      self._dbusservice['/Ac/Current']        = f'{self.inverter.registers["A phase Current"][4]+self.inverter.registers["B phase Current"][4]+self.inverter.registers["C phase Current"][4]:.1f}A'
+      self._dbusservice['/Ac/MaxPower']       = '6000W'
+      self._dbusservice['/Ac/Energy/Forward'] = f'{self.inverter.registers["Energy Total"][4]:.0f}{self.inverter.registers["Energy Total"][3]}'
+      self._dbusservice['/Ac/L1/Voltage']     = f'{self.inverter.registers["A phase Voltage"][4]:.1f}{self.inverter.registers["A phase Voltage"][3]}'
+      self._dbusservice['/Ac/L2/Voltage']     = f'{self.inverter.registers["B phase Voltage"][4]:.1f}{self.inverter.registers["B phase Voltage"][3]}'
+      self._dbusservice['/Ac/L3/Voltage']     = f'{self.inverter.registers["C phase Voltage"][4]:.1f}{self.inverter.registers["C phase Voltage"][3]}'
+      self._dbusservice['/Ac/L1/Current']     = f'{self.inverter.registers["A phase Current"][4]:.1f}{self.inverter.registers["A phase Current"][3]}'
+      self._dbusservice['/Ac/L2/Current']     = f'{self.inverter.registers["B phase Current"][4]:.1f}{self.inverter.registers["B phase Current"][3]}'
+      self._dbusservice['/Ac/L3/Current']     = f'{self.inverter.registers["C phase Current"][4]:.1f}{self.inverter.registers["C phase Current"][3]}'
+      self._dbusservice['/Ac/L1/Power']       = f'{self.inverter.registers["A phase Current"][4]*self.inverter.registers["A phase Voltage"][4]:.0f}W'
+      self._dbusservice['/Ac/L2/Power']       = f'{self.inverter.registers["B phase Current"][4]*self.inverter.registers["B phase Voltage"][4]:.0f}W'
+      self._dbusservice['/Ac/L3/Power']       = f'{self.inverter.registers["C phase Current"][4]*self.inverter.registers["C phase Voltage"][4]:.0f}W'
       self._dbusservice['/Ac/L1/Energy/Forward'] = -1
       self._dbusservice['/Ac/L2/Energy/Forward'] = -1
       self._dbusservice['/Ac/L3/Energy/Forward'] = -1
-    except:
-      logging.info("WARNING: Could not read from Solis S5 Inverter")
+    except Exception as e:
+      logging.info("WARNING: Could not read from Solis S5 Inverter", exc_info=sys.exc_info()[0])
       self._dbusservice['/Ac/Power'] = 0  # TODO: any better idea to signal an issue?
     # increment UpdateIndex - to show that new data is available
     index = self._dbusservice[path_UpdateIndex] + 1  # increment index
@@ -132,41 +143,62 @@ class DbusDummyService:
     return True # accept the change
 
 def main():
-  logging.basicConfig(level=logging.DEBUG) # use .INFO for less logging
   thread.daemon = True # allow the program to quit
+  logging.basicConfig(format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
+                      datefmt='%Y-%m-%d %H:%M:%S',
+                      level=logging.INFO,
+                      handlers=[
+                          logging.FileHandler(
+                              "%s/current.log" % (os.path.dirname(os.path.realpath(__file__)))),
+                          logging.StreamHandler()
+                      ])
 
-  from dbus.mainloop.glib import DBusGMainLoop
-  # Have a mainloop, so we can send/receive asynchronous calls to and from dbus
-  DBusGMainLoop(set_as_default=True)
+  try:
+      logging.info("Start Solis S5 Inverter modbus service")
 
-  pvac_output = DbusDummyService(
-    servicename='com.victronenergy.pvinverter.solis_s5',
-    deviceinstance=0,
-    paths={
-      '/Ac/Power': {'initial': 0},
-      '/Ac/MaxPower': {'initial': 0},
-      '/Ac/Energy/Forward': {'initial': 0},
-      '/Ac/L1/Voltage': {'initial': 0},
-      '/Ac/L2/Voltage': {'initial': 0},
-      '/Ac/L3/Voltage': {'initial': 0},
-      '/Ac/L1/Current': {'initial': 0},
-      '/Ac/L2/Current': {'initial': 0},
-      '/Ac/L3/Current': {'initial': 0},
-      '/Ac/L1/Power': {'initial': 0},
-      '/Ac/L2/Power': {'initial': 0},
-      '/Ac/L3/Power': {'initial': 0},
-      '/Ac/L1/Energy/Forward': {'initial': 0},
-      '/Ac/L2/Energy/Forward': {'initial': 0},
-      '/Ac/L3/Energy/Forward': {'initial': 0},
-      '/ErrorCode': {'initial': 0},
-      '/Position': {'initial': 0},
-      '/StatusCode': {'initial': 7},
-      path_UpdateIndex: {'initial': 0},
-    })
+      if len(sys.argv) > 1:
+          port = sys.argv[1]
+      else:
+          logging.error("Error: no port given")
+          exit(-1)
 
-  logging.info('Connected to dbus, and switching over to gobject.MainLoop() (= event based)')
-  mainloop = gobject.MainLoop()
-  mainloop.run()
+      from dbus.mainloop.glib import DBusGMainLoop
+      # Have a mainloop, so we can send/receive asynchronous calls to and from dbus
+      DBusGMainLoop(set_as_default=True)
+
+      pvac_output = DbusDummyService(
+        port=port,
+        servicename='com.victronenergy.pvinverter.solis_s5',
+        deviceinstance=0,
+        paths={
+          '/Ac/Power': {'initial': 0},
+          '/Ac/Current': {'initial': 0},
+          '/Ac/MaxPower': {'initial': 0},
+          '/Ac/Energy/Forward': {'initial': 0},
+          '/Ac/L1/Voltage': {'initial': 0},
+          '/Ac/L2/Voltage': {'initial': 0},
+          '/Ac/L3/Voltage': {'initial': 0},
+          '/Ac/L1/Current': {'initial': 0},
+          '/Ac/L2/Current': {'initial': 0},
+          '/Ac/L3/Current': {'initial': 0},
+          '/Ac/L1/Power': {'initial': 0},
+          '/Ac/L2/Power': {'initial': 0},
+          '/Ac/L3/Power': {'initial': 0},
+          '/Ac/L1/Energy/Forward': {'initial': 0},
+          '/Ac/L2/Energy/Forward': {'initial': 0},
+          '/Ac/L3/Energy/Forward': {'initial': 0},
+          '/ErrorCode': {'initial': 0},
+          '/Position': {'initial': 0},
+          '/StatusCode': {'initial': 7},
+          path_UpdateIndex: {'initial': 0},
+        })
+
+      logging.info('Connected to dbus, and switching over to gobject.MainLoop() (= event based)')
+      mainloop = gobject.MainLoop()
+      mainloop.run()
+
+  except Exception as e:
+      logging.critical('Error at %s', 'main', exc_info=e)
 
 if __name__ == "__main__":
   main()

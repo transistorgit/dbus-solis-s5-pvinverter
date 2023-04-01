@@ -11,11 +11,13 @@ import minimalmodbus
 path_UpdateIndex = '/UpdateIndex'
 
 class s5_inverter:
-  def __init__(self):
+  def __init__(self, port="/dev/ttyUSB0"):
     self._dbusservice = []
-    self.bus = minimalmodbus.Instrument('/dev/ttyUSB0', slaveaddress=1)
+    self.bus = minimalmodbus.Instrument(port, slaveaddress=1)
     self.bus.serial.baudrate = 9600
     self.bus.serial.timeout = 0.1
+
+    print(f"Modbus on port {port}")
 
     '''
        "DC Voltage 1": [3021, 'U16', 1, 'V'],
@@ -79,8 +81,7 @@ class s5_inverter:
 def main():
   logging.basicConfig(level=logging.DEBUG) # use .INFO for less logging
 
-
-inv = s5_inverter()
+inv = s5_inverter(sys.argv[1] if len(sys.argv)>1 else "/dev/ttyUSB0")
 inv.read_registers()
 inv.read_status()
 inv.read_serial()

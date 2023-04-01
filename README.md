@@ -1,3 +1,10 @@
+
+todo
+instegrate as service + autostart
+
+
+pip3 install minimalmodbus
+
 # dbus-fronius-smartmeter Service
 
 

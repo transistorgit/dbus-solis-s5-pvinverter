@@ -116,9 +116,8 @@ class s5_inverter:
 
 
 class DbusSolisS5Service:
-  def __init__(self, port, servicename, deviceinstance, paths, productname='Solis S5 PV Inverter', connection='Solis S5 PV Inverter service'):
+  def __init__(self, port, servicename, deviceinstance, productname='Solis S5 PV Inverter', connection='Solis S5 PV Inverter service'):
     self._dbusservice = VeDbusService(servicename)
-    self._paths = paths
 
     logging.debug("%s /DeviceInstance = %d" % (servicename, deviceinstance))
     self.inverter = s5_inverter(port)
@@ -136,9 +135,23 @@ class DbusSolisS5Service:
     self._dbusservice.add_path('/HardwareVersion', self.inverter.read_type())
     self._dbusservice.add_path('/Connected', 1)
 
-    for path, settings in self._paths.items():
-      self._dbusservice.add_path(
-        path, settings['initial'], writeable=True, onchangecallback=self._handlechangedvalue)
+    self._dbusservice.add_path('/Ac/Power', None, writeable=True, gettextcallback=lambda a, x: "{:.0f}W".format(x), onchangecallback=self._handlechangedvalue)
+    self._dbusservice.add_path('/Ac/Current', None, writeable=True, gettextcallback=lambda a, x: "{:.1f}A".format(x), onchangecallback=self._handlechangedvalue)
+    self._dbusservice.add_path('/Ac/MaxPower', None, writeable=True, gettextcallback=lambda a, x: "{:.0f}W".format(x), onchangecallback=self._handlechangedvalue)
+    self._dbusservice.add_path('/Ac/Energy/Forward', None, writeable=True, gettextcallback=lambda a, x: "{:.0f}kWh".format(x), onchangecallback=self._handlechangedvalue)
+    self._dbusservice.add_path('/Ac/L1/Voltage', None, writeable=True, gettextcallback=lambda a, x: "{:.1f}V".format(x), onchangecallback=self._handlechangedvalue)
+    self._dbusservice.add_path('/Ac/L2/Voltage', None, writeable=True, gettextcallback=lambda a, x: "{:.1f}V".format(x), onchangecallback=self._handlechangedvalue)
+    self._dbusservice.add_path('/Ac/L3/Voltage', None, writeable=True, gettextcallback=lambda a, x: "{:.1f}V".format(x), onchangecallback=self._handlechangedvalue)
+    self._dbusservice.add_path('/Ac/L1/Current', None, writeable=True, gettextcallback=lambda a, x: "{:.1f}A".format(x), onchangecallback=self._handlechangedvalue)
+    self._dbusservice.add_path('/Ac/L2/Current', None, writeable=True, gettextcallback=lambda a, x: "{:.1f}A".format(x), onchangecallback=self._handlechangedvalue)
+    self._dbusservice.add_path('/Ac/L3/Current', None, writeable=True, gettextcallback=lambda a, x: "{:.1f}A".format(x), onchangecallback=self._handlechangedvalue)
+    self._dbusservice.add_path('/Ac/L1/Power', None, writeable=True, gettextcallback=lambda a, x: "{:.0f}W".format(x), onchangecallback=self._handlechangedvalue)
+    self._dbusservice.add_path('/Ac/L2/Power', None, writeable=True, gettextcallback=lambda a, x: "{:.0f}W".format(x), onchangecallback=self._handlechangedvalue)
+    self._dbusservice.add_path('/Ac/L3/Power', None, writeable=True, gettextcallback=lambda a, x: "{:.0f}W".format(x), onchangecallback=self._handlechangedvalue)
+    self._dbusservice.add_path('/ErrorCode', None, writeable=True, onchangecallback=self._handlechangedvalue)
+    self._dbusservice.add_path('/StatusCode', None, writeable=True, onchangecallback=self._handlechangedvalue)
+    self._dbusservice.add_path('/Position', None, writeable=True, onchangecallback=self._handlechangedvalue)
+    self._dbusservice.add_path(path_UpdateIndex, 0, writeable=True, onchangecallback=self._handlechangedvalue)
 
     gobject.timeout_add(300, self._update) # pause 300ms before the next request
 
@@ -203,26 +216,7 @@ def main():
       pvac_output = DbusSolisS5Service(
         port=port,
         servicename='com.victronenergy.pvinverter.solis_s5',
-        deviceinstance=178,
-        paths={
-          '/Ac/Power': {'initial': 0},
-          '/Ac/Current': {'initial': 0},
-          '/Ac/MaxPower': {'initial': 0},
-          '/Ac/Energy/Forward': {'initial': 0},
-          '/Ac/L1/Voltage': {'initial': 0},
-          '/Ac/L2/Voltage': {'initial': 0},
-          '/Ac/L3/Voltage': {'initial': 0},
-          '/Ac/L1/Current': {'initial': 0},
-          '/Ac/L2/Current': {'initial': 0},
-          '/Ac/L3/Current': {'initial': 0},
-          '/Ac/L1/Power': {'initial': 0},
-          '/Ac/L2/Power': {'initial': 0},
-          '/Ac/L3/Power': {'initial': 0},
-          '/ErrorCode': {'initial': 0},
-          '/Position': {'initial': 0},
-          '/StatusCode': {'initial': 0},
-          path_UpdateIndex: {'initial': 0},
-        })
+        deviceinstance=178)
 
       logging.info('Connected to dbus, and switching over to gobject.MainLoop() (= event based)')
       mainloop = gobject.MainLoop()

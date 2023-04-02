@@ -26,7 +26,7 @@ class s5_inverter:
 
     #use serial number production code to detect solis inverters
     ser = self.read_serial()
-    if not self.check_prodcution_date(ser):
+    if not self.check_production_date(ser):
       raise Exception("Unknown Device")
 
     self.registers = {
@@ -40,6 +40,7 @@ class s5_inverter:
       "A phase Current": [3036, 'U16', 1, 'A', 0],
       "B phase Current": [3037, 'U16', 1, 'A', 0],
       "C phase Current": [3038, 'U16', 1, 'A', 0],
+      "Inverter temperature": [3041, 'U16', 1, '°C'],
     }
 
 
@@ -103,7 +104,7 @@ class s5_inverter:
     return f'{self._to_little_endian(int(self.bus.read_register(3001, 0, 4))):04X}'
 
 
-  def check_prodcution_date(self, serial):
+  def check_production_date(self, serial):
     try:
       year = int(serial[7:9])
       month = int(serial[9:10],16)
@@ -115,7 +116,7 @@ class s5_inverter:
       return False
 
 
-class DbusDummyService:
+class DbusSolisS5Service:
   def __init__(self, port, servicename, deviceinstance, paths, productname='Solis S5 PV Inverter', connection='Solis S5 PV Inverter service'):
     self._dbusservice = VeDbusService(servicename)
     self._paths = paths
@@ -130,7 +131,7 @@ class DbusDummyService:
 
     # Create the mandatory objects
     self._dbusservice.add_path('/DeviceInstance', deviceinstance)
-    self._dbusservice.add_path('/ProductId', 16) # pv inverter?
+    self._dbusservice.add_path('/ProductId', 1234) # pv inverter?
     self._dbusservice.add_path('/ProductName', productname)
     self._dbusservice.add_path('/FirmwareVersion', f'DSP:{self.inverter.read_dsp_version()}_LCD:{self.inverter.read_lcd_version()}')
     self._dbusservice.add_path('/HardwareVersion', self.inverter.read_type())
@@ -161,6 +162,8 @@ class DbusDummyService:
       self._dbusservice['/Ac/L1/Power']       = f'{self.inverter.registers["A phase Current"][4]*self.inverter.registers["A phase Voltage"][4]:.0f}W'
       self._dbusservice['/Ac/L2/Power']       = f'{self.inverter.registers["B phase Current"][4]*self.inverter.registers["B phase Voltage"][4]:.0f}W'
       self._dbusservice['/Ac/L3/Power']       = f'{self.inverter.registers["C phase Current"][4]*self.inverter.registers["C phase Voltage"][4]:.0f}W'
+      self._dbusservice['/Temperature']       = f'{self.inverter.registers["Inverter temperature"][4]}{self.inverter.registers["Inverter temperature"][3]}'
+      self._dbusservice['/StatusCode']        = f'{self.inverter.read_status()}'
     except Exception as e:
       logging.info("WARNING: Could not read from Solis S5 Inverter", exc_info=sys.exc_info()[0])
       self._dbusservice['/Ac/Power'] = 0  # TODO: any better idea to signal an issue?
@@ -199,10 +202,10 @@ def main():
       # Have a mainloop, so we can send/receive asynchronous calls to and from dbus
       DBusGMainLoop(set_as_default=True)
 
-      pvac_output = DbusDummyService(
+      pvac_output = DbusSolisS5Service(
         port=port,
         servicename='com.victronenergy.pvinverter.solis_s5',
-        deviceinstance=333,
+        deviceinstance=178,
         paths={
           '/Ac/Power': {'initial': 0},
           '/Ac/Current': {'initial': 0},
@@ -219,7 +222,8 @@ def main():
           '/Ac/L3/Power': {'initial': 0},
           '/ErrorCode': {'initial': 0},
           '/Position': {'initial': 0},
-          '/StatusCode': {'initial': 7},
+          '/StatusCode': {'initial': 0},
+          '/Temperature': {'initial': 0},
           path_UpdateIndex: {'initial': 0},
         })
 

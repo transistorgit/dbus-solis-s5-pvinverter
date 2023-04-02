@@ -40,7 +40,6 @@ class s5_inverter:
       "A phase Current": [3036, 'U16', 1, 'A', 0],
       "B phase Current": [3037, 'U16', 1, 'A', 0],
       "C phase Current": [3038, 'U16', 1, 'A', 0],
-      "Inverter temperature": [3041, 'U16', 1, '°C'],
     }
 
 
@@ -149,21 +148,20 @@ class DbusSolisS5Service:
 
       self.inverter.read_registers()
 
-      self._dbusservice['/Ac/Power']          = f'{self.inverter.registers["Active Power"][4]}{self.inverter.registers["Active Power"][3]}'
-      self._dbusservice['/Ac/Current']        = f'{self.inverter.registers["A phase Current"][4]+self.inverter.registers["B phase Current"][4]+self.inverter.registers["C phase Current"][4]:.1f}A'
-      self._dbusservice['/Ac/MaxPower']       = '6000W'
-      self._dbusservice['/Ac/Energy/Forward'] = f'{self.inverter.registers["Energy Total"][4]:.0f}{self.inverter.registers["Energy Total"][3]}'
-      self._dbusservice['/Ac/L1/Voltage']     = f'{self.inverter.registers["A phase Voltage"][4]:.1f}{self.inverter.registers["A phase Voltage"][3]}'
-      self._dbusservice['/Ac/L2/Voltage']     = f'{self.inverter.registers["B phase Voltage"][4]:.1f}{self.inverter.registers["B phase Voltage"][3]}'
-      self._dbusservice['/Ac/L3/Voltage']     = f'{self.inverter.registers["C phase Voltage"][4]:.1f}{self.inverter.registers["C phase Voltage"][3]}'
-      self._dbusservice['/Ac/L1/Current']     = f'{self.inverter.registers["A phase Current"][4]:.1f}{self.inverter.registers["A phase Current"][3]}'
-      self._dbusservice['/Ac/L2/Current']     = f'{self.inverter.registers["B phase Current"][4]:.1f}{self.inverter.registers["B phase Current"][3]}'
-      self._dbusservice['/Ac/L3/Current']     = f'{self.inverter.registers["C phase Current"][4]:.1f}{self.inverter.registers["C phase Current"][3]}'
-      self._dbusservice['/Ac/L1/Power']       = f'{self.inverter.registers["A phase Current"][4]*self.inverter.registers["A phase Voltage"][4]:.0f}W'
-      self._dbusservice['/Ac/L2/Power']       = f'{self.inverter.registers["B phase Current"][4]*self.inverter.registers["B phase Voltage"][4]:.0f}W'
-      self._dbusservice['/Ac/L3/Power']       = f'{self.inverter.registers["C phase Current"][4]*self.inverter.registers["C phase Voltage"][4]:.0f}W'
-      self._dbusservice['/Temperature']       = f'{self.inverter.registers["Inverter temperature"][4]}{self.inverter.registers["Inverter temperature"][3]}'
-      self._dbusservice['/StatusCode']        = f'{self.inverter.read_status()}'
+      self._dbusservice['/Ac/Power']          = self.inverter.registers["Active Power"][4]
+      self._dbusservice['/Ac/Current']        = self.inverter.registers["A phase Current"][4]+self.inverter.registers["B phase Current"][4]+self.inverter.registers["C phase Current"][4]
+      self._dbusservice['/Ac/MaxPower']       = 6000
+      self._dbusservice['/Ac/Energy/Forward'] = self.inverter.registers["Energy Total"][4]
+      self._dbusservice['/Ac/L1/Voltage']     = self.inverter.registers["A phase Voltage"][4]
+      self._dbusservice['/Ac/L2/Voltage']     = self.inverter.registers["B phase Voltage"][4]
+      self._dbusservice['/Ac/L3/Voltage']     = self.inverter.registers["C phase Voltage"][4]
+      self._dbusservice['/Ac/L1/Current']     = self.inverter.registers["A phase Current"][4]
+      self._dbusservice['/Ac/L2/Current']     = self.inverter.registers["B phase Current"][4]
+      self._dbusservice['/Ac/L3/Current']     = self.inverter.registers["C phase Current"][4]
+      self._dbusservice['/Ac/L1/Power']       = self.inverter.registers["A phase Current"][4]*self.inverter.registers["A phase Voltage"][4]
+      self._dbusservice['/Ac/L2/Power']       = self.inverter.registers["B phase Current"][4]*self.inverter.registers["B phase Voltage"][4]
+      self._dbusservice['/Ac/L3/Power']       = self.inverter.registers["C phase Current"][4]*self.inverter.registers["C phase Voltage"][4]
+      self._dbusservice['/StatusCode']        = self.inverter.read_status()
     except Exception as e:
       logging.info("WARNING: Could not read from Solis S5 Inverter", exc_info=sys.exc_info()[0])
       self._dbusservice['/Ac/Power'] = 0  # TODO: any better idea to signal an issue?
@@ -223,7 +221,6 @@ def main():
           '/ErrorCode': {'initial': 0},
           '/Position': {'initial': 0},
           '/StatusCode': {'initial': 0},
-          '/Temperature': {'initial': 0},
           path_UpdateIndex: {'initial': 0},
         })
 

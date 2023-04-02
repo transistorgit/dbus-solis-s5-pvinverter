@@ -79,7 +79,7 @@ The daemon-tools will restart the scriptwithin a few seconds.
 
 In my installation at home, I am using the following Hardware:
 
-- Solis S5 6kW tri phase PV inverter
+- Solis S5-GR3P6K 6kW tri phase PV inverter
 - Voltwerk VS5 5kW single phase (old one, not yet connected)
 - Victron MultiPlus-II 3kW - Battery Inverter (single phase)
 - Raspberry Pi 3B+ - For running Venus OS

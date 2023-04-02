@@ -24,6 +24,11 @@ class s5_inverter:
     self.bus.serial.baudrate = 9600
     self.bus.serial.timeout = 0.1
 
+    #use serial number production code to detect solis inverters
+    ser = self.read_serial()
+    if not self.check_prodcution_date(ser):
+      raise Exception("Unknown Device")
+
     self.registers = {
       # name        : nr , format, factor, unit
       "Active Power": [3004, 'U32', 1, 'W', 0],
@@ -73,17 +78,41 @@ class s5_inverter:
     return status
 
 
-  #not working, second half seems wrong
-  def read_serial(self):
-    def swap(b):
-      return (b&0xf)<<16 | (b&0xf0)<<8 | (b>>8)&0xf0 | (b>>16)&0xf
-    serial = {}
-    serial["Inverter SN_1"] = swap(int(self.bus.read_register(3060, 0, 4)))
-    serial["Inverter SN_2"] = swap(int(self.bus.read_register(3061, 0, 4)))
-    serial["Inverter SN_3"] = swap(int(self.bus.read_register(3062, 0, 4)))
-    serial["Inverter SN_4"] = swap(int(self.bus.read_register(3063, 0, 4)))
+  def _to_little_endian(self, b):
+    return (b&0xf)<<12 | (b&0xf0)<<4 | (b&0xf00)>>4 | (b&0xf000)>>12
 
-    return f'Inverter Serial: {serial["Inverter SN_1"]:04X}{serial["Inverter SN_2"]:04X}{serial["Inverter SN_3"]:04X}{serial["Inverter SN_4"]:04X}'
+
+  def read_serial(self):
+    serial = {}
+    serial["Inverter SN_1"] = self._to_little_endian(int(self.bus.read_register(3060, 0, 4)))
+    serial["Inverter SN_2"] = self._to_little_endian(int(self.bus.read_register(3061, 0, 4)))
+    serial["Inverter SN_3"] = self._to_little_endian(int(self.bus.read_register(3062, 0, 4)))
+    serial["Inverter SN_4"] = self._to_little_endian(int(self.bus.read_register(3063, 0, 4)))
+    serial_str = f'{serial["Inverter SN_1"]:04X}{serial["Inverter SN_2"]:04X}{serial["Inverter SN_3"]:04X}{serial["Inverter SN_4"]:04X}'
+    return serial_str
+    
+
+  def read_type(self):
+    return f'{self._to_little_endian(int(self.bus.read_register(2999, 0, 4))):04X}'
+    
+  def read_dsp_version(self):
+    return f'{self._to_little_endian(int(self.bus.read_register(3000, 0, 4))):04X}'
+    
+
+  def read_lcd_version(self):
+    return f'{self._to_little_endian(int(self.bus.read_register(3001, 0, 4))):04X}'
+
+
+  def check_prodcution_date(self, serial):
+    try:
+      year = int(serial[7:9])
+      month = int(serial[9:10],16)
+      day = int(serial[10:12])
+      #print(f'{year}/{month}/{day}')
+      if year>20 and year<30 and month<=12 and day<=31:
+        return True
+    except:
+      return False
 
 
 class DbusDummyService:
@@ -92,6 +121,7 @@ class DbusDummyService:
     self._paths = paths
 
     logging.debug("%s /DeviceInstance = %d" % (servicename, deviceinstance))
+    self.inverter = s5_inverter(port)
 
     # Create the management objects, as specified in the ccgx dbus-api document
     self._dbusservice.add_path('/Mgmt/ProcessName', __file__)
@@ -102,15 +132,13 @@ class DbusDummyService:
     self._dbusservice.add_path('/DeviceInstance', deviceinstance)
     self._dbusservice.add_path('/ProductId', 16) # pv inverter?
     self._dbusservice.add_path('/ProductName', productname)
-    self._dbusservice.add_path('/FirmwareVersion', 0.1)
-    self._dbusservice.add_path('/HardwareVersion', 0)
+    self._dbusservice.add_path('/FirmwareVersion', f'DSP:{self.inverter.read_dsp_version()}_LCD:{self.inverter.read_lcd_version()}')
+    self._dbusservice.add_path('/HardwareVersion', self.inverter.read_type())
     self._dbusservice.add_path('/Connected', 1)
 
     for path, settings in self._paths.items():
       self._dbusservice.add_path(
         path, settings['initial'], writeable=True, onchangecallback=self._handlechangedvalue)
-
-    self.inverter = s5_inverter(port)
 
     gobject.timeout_add(300, self._update) # pause 300ms before the next request
 
@@ -165,7 +193,7 @@ def main():
           port = sys.argv[1]
       else:
           logging.error("Error: no port given")
-          exit(-1)
+          exit(1)
 
       from dbus.mainloop.glib import DBusGMainLoop
       # Have a mainloop, so we can send/receive asynchronous calls to and from dbus
@@ -201,6 +229,7 @@ def main():
 
   except Exception as e:
       logging.critical('Error at %s', 'main', exc_info=e)
+      exit(1)
 
 if __name__ == "__main__":
   main()

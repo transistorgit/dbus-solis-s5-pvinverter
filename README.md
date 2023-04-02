@@ -1,9 +1,13 @@
 
-todo
-instegrate as service + autostart
-
+#todo
+cleanup
+readme
 
 pip3 install minimalmodbus
+add service line to /data/conf/serial-starter.d
+service solis_s5 dbus-solis-s5-pvinverter
+append our service to default alias:
+alias default gps:vedirect:sbattery:solis_s5
 
 # dbus-fronius-smartmeter Service
 

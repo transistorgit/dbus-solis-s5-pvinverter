@@ -46,6 +46,7 @@ class s5_inverter:
       "A phase Current": [3036, 'U16', 1, 'A'],
       "B phase Current": [3037, 'U16', 1, 'A'],
       "C phase Current": [3038, 'U16', 1, 'A'],
+      "Solis Type": [2999, 'U16', 1, ''],
     }
 
 
@@ -65,17 +66,39 @@ class s5_inverter:
     return status
 
 
-  #not working, second half seems wrong
-  def read_serial(self):
-    def swap(b):
-      return (b&0xf)<<16 | (b&0xf0)<<8 | (b>>8)&0xf0 | (b>>16)&0xf
-    serial = {}
-    serial["Inverter SN_1"] = swap(int(self.bus.read_register(3060, 0, 4)))
-    serial["Inverter SN_2"] = swap(int(self.bus.read_register(3061, 0, 4)))
-    serial["Inverter SN_3"] = swap(int(self.bus.read_register(3062, 0, 4)))
-    serial["Inverter SN_4"] = swap(int(self.bus.read_register(3063, 0, 4)))
+  def _to_little_endian(self, b):
+    return (b&0xf)<<12 | (b&0xf0)<<4 | (b&0xf00)>>4 | (b&0xf000)>>12
 
-    print(f'Inverter Serial: {serial["Inverter SN_1"]:04X}{serial["Inverter SN_2"]:04X}{serial["Inverter SN_3"]:04X}{serial["Inverter SN_4"]:04X}')
+
+  def read_serial(self):
+    serial = {}
+    serial["Inverter SN_1"] = self._to_little_endian(int(self.bus.read_register(3060, 0, 4)))
+    serial["Inverter SN_2"] = self._to_little_endian(int(self.bus.read_register(3061, 0, 4)))
+    serial["Inverter SN_3"] = self._to_little_endian(int(self.bus.read_register(3062, 0, 4)))
+    serial["Inverter SN_4"] = self._to_little_endian(int(self.bus.read_register(3063, 0, 4)))
+    serial_str = f'{serial["Inverter SN_1"]:04X}{serial["Inverter SN_2"]:04X}{serial["Inverter SN_3"]:04X}{serial["Inverter SN_4"]:04X}'
+    return serial_str
+    
+
+  def read_type(self):
+    return f'{self._to_little_endian(int(self.bus.read_register(2999, 0, 4))):04X}'
+    
+  def read_dsp_version(self):
+    return f'{self._to_little_endian(int(self.bus.read_register(3000, 0, 4))):04X}'
+    
+  def read_lcd_version(self):
+    return f'{self._to_little_endian(int(self.bus.read_register(3001, 0, 4))):04X}'
+    
+  def check_prodcution_date(self, serial):
+    try:
+      year = int(serial[7:9])
+      month = int(serial[9:10],16)
+      day = int(serial[10:12])
+      print(f'{year}/{month}/{day}')
+      if year>20 and year<30 and month<=12 and day<=31:
+        return True
+    except:
+      return False
 
 
 def main():
@@ -84,7 +107,10 @@ def main():
 inv = s5_inverter(sys.argv[1] if len(sys.argv)>1 else "/dev/ttyUSB0")
 inv.read_registers()
 inv.read_status()
-inv.read_serial()
+print("Serial: " + inv.read_serial())
+print("Type: " + inv.read_type())
+print(f"Date check {inv.check_prodcution_date(inv.read_serial())}")
+
 
 
 if __name__ == "__main__":

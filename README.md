@@ -1,97 +1,89 @@
+# dbus-solis-s5-pvinverter Service
 
-#todo
-cleanup
-readme
+based on the project https://github.com/victronenergy/dbus-fronius
 
-pip3 install minimalmodbus
-add service line to /data/conf/serial-starter.d
-service solis_s5 dbus-solis-s5-pvinverter
-append our service to default alias:
-alias default gps:vedirect:sbattery:solis_s5
-
-# dbus-fronius-smartmeter Service
-
-
-
-### Purpose
+## Purpose
 
 This service is meant to be run on a raspberry Pi with Venus OS from Victron.
 
-The Python script cyclically reads data from the Fronius SmartMeter via the Fronius REST API and publishes information on the dbus, using the service name com.victronenergy.grid. This makes the Venus OS work as if you had a physical Victron Grid Meter installed.
+The Python script cyclically reads data from the Solis S5 PV Inverter via Modbus RTU and publishes information on the dbus, using the service name com.victronenergy.pvinverter.solis-s5. The measured values are shown in the Remote Console and can be used by Node Red.
 
-### Configuration
 
-In the Python file, you should put the IP of your Fronius device that hosts the REST API. In my setup, it is the IP of the Fronius Symo, which gets the data from the Fronius Smart Metervia the RS485 connection between them.
+## Installation
 
-### Installation
+0. install pip:
 
-1. Copy the files to the /data folder on your venus:
+   `opkg update`
 
-   - /data/dbus-fronius-smartmeter/dbus-fronius-smartmeter.py
-   - /data/dbus-fronius-smartmeter/kill_me.sh
-   - /data/dbus-fronius-smartmeter/service/run
+   `opkg install python3-pip`
+   
+   then install pip3:
 
-2. Set permissions for files:
+   `pip3 install minimalmodbus`
 
-   `chmod 755 /data/dbus-fronius-smartmeter/service/run`
+1. Clone the repo or copy the files to the folder `/data/etc/dbus-solis-s5-pvinverter`
 
-   `chmod 744 /data/dbus-fronius-smartmeter/kill_me.sh`
+2. Set permissions for py and .sh files if not yet executable:
 
-3. Get two files from the [velib_python](https://github.com/victronenergy/velib_python) and install them on your venus:
+   `chmod +x /data/etc/dbus-solis-s5-pvinverter/service/run`
 
-   - /data/dbus-fronius-smartmeter/vedbus.py
-   - /data/dbus-fronius-smartmeter/ve_utils.py
+   `chmod +x /data/etc/dbus-solis-s5-pvinverter/*.sh`
 
-4. Add a symlink to the file /data/rc.local:
+   `chmod +x /data/etc/dbus-solis-s5-pvinverter/*.py`
 
-   `ln -s /data/dbus-fronius-smartmeter/service /service/dbus-fronius-smartmeter`
+3. add service line to `/data/conf/serial-starter.d`:
 
-   Or if that file does not exist yet, store the file rc.local from this service on your Raspberry Pi as /data/rc.local .
-   You can then create the symlink by just running rc.local:
-  
-   `rc.local`
+   `service solis_s5 dbus-solis-s5-pvinverter`
+
+   also append our service short name "solis_s5" to default alias (append it like this):
+
+   `alias default gps:vedirect:sbattery:solis_s5`
+
+4. run `./install.sh`
 
    The daemon-tools should automatically start this service within seconds.
 
-### Debugging
+## Debugging
 
+### Check if its running
 You can check the status of the service with svstat:
 
-`svstat /service/dbus-fronius-smartmeter`
+`svstat /service/dbus-solis-s5-pvinverter.ttyUSB0`
+
+try different USB Ports like ttyUSB1 as the service may use another one
 
 It will show something like this:
 
-`/service/dbus-fronius-smartmeter: up (pid 10078) 325 seconds`
+`/service/dbus-solis-s5-pvinverter: up (pid 10078) 325 seconds`
 
 If the number of seconds is always 0 or 1 or any other small number, it means that the service crashes and gets restarted all the time.
 
+### Analysing
 When you think that the script crashes, start it directly from the command line:
 
-`python /data/dbus-fronius-smartmeter/dbus-fronius-smartmeter.py`
+`python /data/etc/dbus-solis-s5-pvinverter/dbus-solis-s5-pvinverter.py`
 
 and see if it throws any error messages.
 
-If the script stops with the message
+The logs can be checked here; `/var/log/dbus-solis-s5-pvinverter.ttyUSBx`
 
-`dbus.exceptions.NameExistsException: Bus name already exists: com.victronenergy.grid"`
-
-it means that the service is still running or another service is using that bus name.
-
-#### Restart the script
+### Restart the script
 
 If you want to restart the script, for example after changing it, just run the following command:
 
-`/data/dbus-fronius-smartmeter/kill_me.sh`
+`/data/etc/dbus-solis-s5-pvinverter/kill_me.sh`
 
 The daemon-tools will restart the scriptwithin a few seconds.
 
-### Hardware
+## Hardware
 
 In my installation at home, I am using the following Hardware:
 
-- Fronius Symo - PV Grid Tied Inverter (three phases)
-- Fronius Smart Meter 63A-3 - (three phases)
-- Victron MultiPlus-II - Battery Inverter (single phase)
+- Solis S5 6kW tri phase PV inverter
+- Voltwerk VS5 5kW single phase (old one, not yet connected)
+- Victron MultiPlus-II 3kW - Battery Inverter (single phase)
 - Raspberry Pi 3B+ - For running Venus OS
-- Pylontech US2000 Plus - LiFePO Battery
+- 2 DIY LiFePO4 Batteries with Daly Smart BMS, connected with dbus-serialbattery
+- currently dbus-AggragateBatteries to gather the Daly data
+- SmartShunt
 

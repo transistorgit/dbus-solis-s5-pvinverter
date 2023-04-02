@@ -116,7 +116,7 @@ class s5_inverter:
 
 
 class DbusSolisS5Service:
-  def __init__(self, port, servicename, deviceinstance, productname='Solis S5 PV Inverter', connection='Solis S5 PV Inverter service'):
+  def __init__(self, port, servicename, deviceinstance=288, productname='Solis S5 PV Inverter', connection='unknown'):
     self._dbusservice = VeDbusService(servicename)
 
     logging.debug("%s /DeviceInstance = %d" % (servicename, deviceinstance))
@@ -148,9 +148,9 @@ class DbusSolisS5Service:
     self._dbusservice.add_path('/Ac/L1/Power', None, writeable=True, gettextcallback=lambda a, x: "{:.0f}W".format(x), onchangecallback=self._handlechangedvalue)
     self._dbusservice.add_path('/Ac/L2/Power', None, writeable=True, gettextcallback=lambda a, x: "{:.0f}W".format(x), onchangecallback=self._handlechangedvalue)
     self._dbusservice.add_path('/Ac/L3/Power', None, writeable=True, gettextcallback=lambda a, x: "{:.0f}W".format(x), onchangecallback=self._handlechangedvalue)
-    self._dbusservice.add_path('/ErrorCode', None, writeable=True, onchangecallback=self._handlechangedvalue)
-    self._dbusservice.add_path('/StatusCode', None, writeable=True, onchangecallback=self._handlechangedvalue)
-    self._dbusservice.add_path('/Position', None, writeable=True, onchangecallback=self._handlechangedvalue)
+    self._dbusservice.add_path('/ErrorCode', 0, writeable=True, onchangecallback=self._handlechangedvalue)
+    self._dbusservice.add_path('/StatusCode', 0, writeable=True, onchangecallback=self._handlechangedvalue)
+    self._dbusservice.add_path('/Position', 0, writeable=True, onchangecallback=self._handlechangedvalue)
     self._dbusservice.add_path(path_UpdateIndex, 0, writeable=True, onchangecallback=self._handlechangedvalue)
 
     gobject.timeout_add(300, self._update) # pause 300ms before the next request
@@ -174,6 +174,7 @@ class DbusSolisS5Service:
       self._dbusservice['/Ac/L1/Power']       = self.inverter.registers["A phase Current"][4]*self.inverter.registers["A phase Voltage"][4]
       self._dbusservice['/Ac/L2/Power']       = self.inverter.registers["B phase Current"][4]*self.inverter.registers["B phase Voltage"][4]
       self._dbusservice['/Ac/L3/Power']       = self.inverter.registers["C phase Current"][4]*self.inverter.registers["C phase Voltage"][4]
+      self._dbusservice['/ErrorCode']         = 0 # TODO
       self._dbusservice['/StatusCode']        = self.inverter.read_status()
     except Exception as e:
       logging.info("WARNING: Could not read from Solis S5 Inverter", exc_info=sys.exc_info()[0])
@@ -213,10 +214,13 @@ def main():
       # Have a mainloop, so we can send/receive asynchronous calls to and from dbus
       DBusGMainLoop(set_as_default=True)
 
+      portname = port.split('/')[-1]
+      portnumber = int(portname[-1]) if portname[-1].isdigit() else 0
       pvac_output = DbusSolisS5Service(
-        port=port,
-        servicename='com.victronenergy.pvinverter.solis_s5',
-        deviceinstance=178)
+        port = port,
+        servicename = 'com.victronenergy.pvinverter.' + portname,
+        deviceinstance = 288 + portnumber,
+        connection = 'Modbus RTU on ' + port)
 
       logging.info('Connected to dbus, and switching over to gobject.MainLoop() (= event based)')
       mainloop = gobject.MainLoop()

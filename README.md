@@ -8,6 +8,14 @@ This service is meant to be run on a raspberry Pi with Venus OS from Victron.
 
 The Python script cyclically reads data from the Solis S5 PV Inverter via Modbus RTU and publishes information on the dbus, using the service name com.victronenergy.pvinverter.solis-s5. The measured values are shown in the Remote Console and can be used by Node Red.
 
+## Interface
+The Venus Device needs an USB-RS485 Converter. The line is connected to the 4-Pin Wifi Dongle Port of the Inverter. There is also an 2-Pin Port, but that is for the grid meter only.
+* Pin1 5V
+* Pin2 Gnd
+* Pin3 Data +
+* Pin4 Data -
+
+You can measure the 5V/Gnd pins and then use the other two. Use a twisted pair cable like Ethernet or signal cable marked 1x2, 2x2, 3x2 etc. The x2 means that there are 2 wires twisted. This is needed to make it robust agains interference. If you have problems making the connection, at first try to change polarity, at second try to use 120 Ohms termination resistors on one or both ends, especially on long lines. Long can be 20-200m.
 
 ## Installation
 

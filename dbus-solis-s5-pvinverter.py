@@ -52,6 +52,7 @@ class s5_inverter:
               value[4]= self.bus.read_long(value[0],4) * factor
             else:
               value[4] = self.bus.read_register(value[0],1,4) * factor
+            break
           except minimalmodbus.ModbusException:
             value[4]= 0
             pass # igonore sporadic checksum or noreply errors but raise others
@@ -64,11 +65,12 @@ class s5_inverter:
     for _ in range(3):
       try:
         status = int(self.bus.read_register(3043, 0, 4))
+        return status
       except minimalmodbus.ModbusException:
         pass # igonore sporadic checksum or noreply errors but raise others
     
     # print(f'Inverter Status: {status:04X}') # 0 waiting, 3 generating
-    return status
+    return 0
 
 
   def _to_little_endian(self, b):
@@ -76,16 +78,18 @@ class s5_inverter:
 
 
   def read_serial(self):
-    try:
-      serial = {}
-      serial["Inverter SN_1"] = self._to_little_endian(int(self.bus.read_register(3060, 0, 4)))
-      serial["Inverter SN_2"] = self._to_little_endian(int(self.bus.read_register(3061, 0, 4)))
-      serial["Inverter SN_3"] = self._to_little_endian(int(self.bus.read_register(3062, 0, 4)))
-      serial["Inverter SN_4"] = self._to_little_endian(int(self.bus.read_register(3063, 0, 4)))
-      serial_str = f'{serial["Inverter SN_1"]:04X}{serial["Inverter SN_2"]:04X}{serial["Inverter SN_3"]:04X}{serial["Inverter SN_4"]:04X}'
-      return serial_str
-    except minimalmodbus.ModbusException:
-      return ''
+    for _ in range(3):
+      try:
+        serial = {}
+        serial["Inverter SN_1"] = self._to_little_endian(int(self.bus.read_register(3060, 0, 4)))
+        serial["Inverter SN_2"] = self._to_little_endian(int(self.bus.read_register(3061, 0, 4)))
+        serial["Inverter SN_3"] = self._to_little_endian(int(self.bus.read_register(3062, 0, 4)))
+        serial["Inverter SN_4"] = self._to_little_endian(int(self.bus.read_register(3063, 0, 4)))
+        serial_str = f'{serial["Inverter SN_1"]:04X}{serial["Inverter SN_2"]:04X}{serial["Inverter SN_3"]:04X}{serial["Inverter SN_4"]:04X}'
+        return serial_str
+      except minimalmodbus.ModbusException:
+        pass
+    return ''
 
 
   def read_type(self):
@@ -123,44 +127,47 @@ class s5_inverter:
 
 class DbusSolisS5Service:
   def __init__(self, port, servicename, deviceinstance=288, productname='Solis S5 PV Inverter', connection='unknown'):
-    self._dbusservice = VeDbusService(servicename)
+    try:
+      self._dbusservice = VeDbusService(servicename)
 
-    logging.debug("%s /DeviceInstance = %d" % (servicename, deviceinstance))
-    self.inverter = s5_inverter(port)
+      logging.debug("%s /DeviceInstance = %d" % (servicename, deviceinstance))
+      self.inverter = s5_inverter(port)
 
-    # Create the management objects, as specified in the ccgx dbus-api document
-    self._dbusservice.add_path('/Mgmt/ProcessName', __file__)
-    self._dbusservice.add_path('/Mgmt/ProcessVersion', 'Unkown version, and running on Python ' + platform.python_version())
-    self._dbusservice.add_path('/Mgmt/Connection', connection)
+      # Create the management objects, as specified in the ccgx dbus-api document
+      self._dbusservice.add_path('/Mgmt/ProcessName', __file__)
+      self._dbusservice.add_path('/Mgmt/ProcessVersion', 'Unkown version, and running on Python ' + platform.python_version())
+      self._dbusservice.add_path('/Mgmt/Connection', connection)
 
-    # Create the mandatory objects
-    self._dbusservice.add_path('/DeviceInstance', deviceinstance)
-    self._dbusservice.add_path('/ProductId', 1234) # pv inverter?
-    self._dbusservice.add_path('/ProductName', productname)
-    self._dbusservice.add_path('/FirmwareVersion', f'DSP:{self.inverter.read_dsp_version()}_LCD:{self.inverter.read_lcd_version()}')
-    self._dbusservice.add_path('/HardwareVersion', self.inverter.read_type())
-    self._dbusservice.add_path('/Connected', 1)
+      # Create the mandatory objects
+      self._dbusservice.add_path('/DeviceInstance', deviceinstance)
+      self._dbusservice.add_path('/ProductId', 1234) # pv inverter?
+      self._dbusservice.add_path('/ProductName', productname)
+      self._dbusservice.add_path('/FirmwareVersion', f'DSP:{self.inverter.read_dsp_version()}_LCD:{self.inverter.read_lcd_version()}')
+      self._dbusservice.add_path('/HardwareVersion', self.inverter.read_type())
+      self._dbusservice.add_path('/Connected', 1)
 
-    self._dbusservice.add_path('/Ac/Power', None, writeable=True, gettextcallback=lambda a, x: "{:.0f}W".format(x), onchangecallback=self._handlechangedvalue)
-    self._dbusservice.add_path('/Ac/Current', None, writeable=True, gettextcallback=lambda a, x: "{:.1f}A".format(x), onchangecallback=self._handlechangedvalue)
-    self._dbusservice.add_path('/Ac/MaxPower', None, writeable=True, gettextcallback=lambda a, x: "{:.0f}W".format(x), onchangecallback=self._handlechangedvalue)
-    self._dbusservice.add_path('/Ac/Energy/Forward', None, writeable=True, gettextcallback=lambda a, x: "{:.0f}kWh".format(x), onchangecallback=self._handlechangedvalue)
-    self._dbusservice.add_path('/Ac/L1/Voltage', None, writeable=True, gettextcallback=lambda a, x: "{:.1f}V".format(x), onchangecallback=self._handlechangedvalue)
-    self._dbusservice.add_path('/Ac/L2/Voltage', None, writeable=True, gettextcallback=lambda a, x: "{:.1f}V".format(x), onchangecallback=self._handlechangedvalue)
-    self._dbusservice.add_path('/Ac/L3/Voltage', None, writeable=True, gettextcallback=lambda a, x: "{:.1f}V".format(x), onchangecallback=self._handlechangedvalue)
-    self._dbusservice.add_path('/Ac/L1/Current', None, writeable=True, gettextcallback=lambda a, x: "{:.1f}A".format(x), onchangecallback=self._handlechangedvalue)
-    self._dbusservice.add_path('/Ac/L2/Current', None, writeable=True, gettextcallback=lambda a, x: "{:.1f}A".format(x), onchangecallback=self._handlechangedvalue)
-    self._dbusservice.add_path('/Ac/L3/Current', None, writeable=True, gettextcallback=lambda a, x: "{:.1f}A".format(x), onchangecallback=self._handlechangedvalue)
-    self._dbusservice.add_path('/Ac/L1/Power', None, writeable=True, gettextcallback=lambda a, x: "{:.0f}W".format(x), onchangecallback=self._handlechangedvalue)
-    self._dbusservice.add_path('/Ac/L2/Power', None, writeable=True, gettextcallback=lambda a, x: "{:.0f}W".format(x), onchangecallback=self._handlechangedvalue)
-    self._dbusservice.add_path('/Ac/L3/Power', None, writeable=True, gettextcallback=lambda a, x: "{:.0f}W".format(x), onchangecallback=self._handlechangedvalue)
-    self._dbusservice.add_path('/ErrorCode', 0, writeable=True, onchangecallback=self._handlechangedvalue)
-    self._dbusservice.add_path('/StatusCode', 0, writeable=True, onchangecallback=self._handlechangedvalue)
-    self._dbusservice.add_path('/Position', 0, writeable=True, onchangecallback=self._handlechangedvalue)
-    self._dbusservice.add_path(path_UpdateIndex, 0, writeable=True, onchangecallback=self._handlechangedvalue)
+      self._dbusservice.add_path('/Ac/Power', None, writeable=True, gettextcallback=lambda a, x: "{:.0f}W".format(x), onchangecallback=self._handlechangedvalue)
+      self._dbusservice.add_path('/Ac/Current', None, writeable=True, gettextcallback=lambda a, x: "{:.1f}A".format(x), onchangecallback=self._handlechangedvalue)
+      self._dbusservice.add_path('/Ac/MaxPower', None, writeable=True, gettextcallback=lambda a, x: "{:.0f}W".format(x), onchangecallback=self._handlechangedvalue)
+      self._dbusservice.add_path('/Ac/Energy/Forward', None, writeable=True, gettextcallback=lambda a, x: "{:.0f}kWh".format(x), onchangecallback=self._handlechangedvalue)
+      self._dbusservice.add_path('/Ac/L1/Voltage', None, writeable=True, gettextcallback=lambda a, x: "{:.1f}V".format(x), onchangecallback=self._handlechangedvalue)
+      self._dbusservice.add_path('/Ac/L2/Voltage', None, writeable=True, gettextcallback=lambda a, x: "{:.1f}V".format(x), onchangecallback=self._handlechangedvalue)
+      self._dbusservice.add_path('/Ac/L3/Voltage', None, writeable=True, gettextcallback=lambda a, x: "{:.1f}V".format(x), onchangecallback=self._handlechangedvalue)
+      self._dbusservice.add_path('/Ac/L1/Current', None, writeable=True, gettextcallback=lambda a, x: "{:.1f}A".format(x), onchangecallback=self._handlechangedvalue)
+      self._dbusservice.add_path('/Ac/L2/Current', None, writeable=True, gettextcallback=lambda a, x: "{:.1f}A".format(x), onchangecallback=self._handlechangedvalue)
+      self._dbusservice.add_path('/Ac/L3/Current', None, writeable=True, gettextcallback=lambda a, x: "{:.1f}A".format(x), onchangecallback=self._handlechangedvalue)
+      self._dbusservice.add_path('/Ac/L1/Power', None, writeable=True, gettextcallback=lambda a, x: "{:.0f}W".format(x), onchangecallback=self._handlechangedvalue)
+      self._dbusservice.add_path('/Ac/L2/Power', None, writeable=True, gettextcallback=lambda a, x: "{:.0f}W".format(x), onchangecallback=self._handlechangedvalue)
+      self._dbusservice.add_path('/Ac/L3/Power', None, writeable=True, gettextcallback=lambda a, x: "{:.0f}W".format(x), onchangecallback=self._handlechangedvalue)
+      self._dbusservice.add_path('/ErrorCode', 0, writeable=True, onchangecallback=self._handlechangedvalue)
+      self._dbusservice.add_path('/StatusCode', 0, writeable=True, onchangecallback=self._handlechangedvalue)
+      self._dbusservice.add_path('/Position', 0, writeable=True, onchangecallback=self._handlechangedvalue)
+      self._dbusservice.add_path(path_UpdateIndex, 0, writeable=True, onchangecallback=self._handlechangedvalue)
 
-    gobject.timeout_add(300, self._update) # pause 300ms before the next request
-
+      gobject.timeout_add(300, self._update) # pause 300ms before the next request
+    except Exception as e:
+      logging.critical("Fatal error at %s", 'DbusSolisS5Service.__init', exc_info=e)
+      exit(1)
 
   def _update(self):
     try:
@@ -186,10 +193,7 @@ class DbusSolisS5Service:
       logging.info("WARNING: Could not read from Solis S5 Inverter", exc_info=sys.exc_info()[0])
       self._dbusservice['/Ac/Power'] = 0  # TODO: any better idea to signal an issue?
     # increment UpdateIndex - to show that new data is available
-    index = self._dbusservice[path_UpdateIndex] + 1  # increment index
-    if index > 255:   # maximum value of the index
-      index = 0       # overflow from 255 to 0
-    self._dbusservice[path_UpdateIndex] = index
+    self._dbusservice[path_UpdateIndex] = (self._dbusservice[path_UpdateIndex] + 1) % 255  # increment index
     return True
 
   def _handlechangedvalue(self, path, value):

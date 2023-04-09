@@ -46,33 +46,26 @@ class s5_inverter:
   def read_registers(self):
     for key, value in self.registers.items():
         factor = value[2]
-        if value[1] == 'U32':
+        for _ in range(3):
           try:
-            value[4]= self.bus.read_long(value[0],4) * factor
-          except minimalmodbus.NoResponseError:
-            try:
+            if value[1] == 'U32':
               value[4]= self.bus.read_long(value[0],4) * factor
-            except minimalmodbus.NoResponseError:
-              logging.info("Modbus read failed")
-              value[4]= 0
-        else:
-          try:
-            value[4] = self.bus.read_register(value[0],1,4) * factor
-          except minimalmodbus.NoResponseError:
-            try:
+            else:
               value[4] = self.bus.read_register(value[0],1,4) * factor
-            except minimalmodbus.NoResponseError:
-              logging.info("Modbus read failed")
-              value[4]= 0
+          except minimalmodbus.ModbusException:
+            value[4]= 0
+            pass # igonore sporadic checksum or noreply errors but raise others
+
         # print(f"{key}: {value[-1]} {value[-2]}")
     return self.registers
 
 
   def read_status(self):
-    try:
-      status = int(self.bus.read_register(3043, 0, 4))
-    except minimalmodbus.NoResponseError:
-      status = int(self.bus.read_register(3043, 0, 4))
+    for _ in range(3):
+      try:
+        status = int(self.bus.read_register(3043, 0, 4))
+      except minimalmodbus.ModbusException:
+        pass # igonore sporadic checksum or noreply errors but raise others
     
     # print(f'Inverter Status: {status:04X}') # 0 waiting, 3 generating
     return status
@@ -83,24 +76,37 @@ class s5_inverter:
 
 
   def read_serial(self):
-    serial = {}
-    serial["Inverter SN_1"] = self._to_little_endian(int(self.bus.read_register(3060, 0, 4)))
-    serial["Inverter SN_2"] = self._to_little_endian(int(self.bus.read_register(3061, 0, 4)))
-    serial["Inverter SN_3"] = self._to_little_endian(int(self.bus.read_register(3062, 0, 4)))
-    serial["Inverter SN_4"] = self._to_little_endian(int(self.bus.read_register(3063, 0, 4)))
-    serial_str = f'{serial["Inverter SN_1"]:04X}{serial["Inverter SN_2"]:04X}{serial["Inverter SN_3"]:04X}{serial["Inverter SN_4"]:04X}'
-    return serial_str
-    
+    try:
+      serial = {}
+      serial["Inverter SN_1"] = self._to_little_endian(int(self.bus.read_register(3060, 0, 4)))
+      serial["Inverter SN_2"] = self._to_little_endian(int(self.bus.read_register(3061, 0, 4)))
+      serial["Inverter SN_3"] = self._to_little_endian(int(self.bus.read_register(3062, 0, 4)))
+      serial["Inverter SN_4"] = self._to_little_endian(int(self.bus.read_register(3063, 0, 4)))
+      serial_str = f'{serial["Inverter SN_1"]:04X}{serial["Inverter SN_2"]:04X}{serial["Inverter SN_3"]:04X}{serial["Inverter SN_4"]:04X}'
+      return serial_str
+    except minimalmodbus.ModbusException:
+      return ''
+
 
   def read_type(self):
-    return f'{self._to_little_endian(int(self.bus.read_register(2999, 0, 4))):04X}'
+    try:
+      return f'{self._to_little_endian(int(self.bus.read_register(2999, 0, 4))):04X}'
+    except minimalmodbus.ModbusException:
+      return ''
+
     
   def read_dsp_version(self):
-    return f'{self._to_little_endian(int(self.bus.read_register(3000, 0, 4))):04X}'
+    try:
+      return f'{self._to_little_endian(int(self.bus.read_register(3000, 0, 4))):04X}'
+    except minimalmodbus.ModbusException:
+      return ''
     
 
   def read_lcd_version(self):
-    return f'{self._to_little_endian(int(self.bus.read_register(3001, 0, 4))):04X}'
+    try:
+      return f'{self._to_little_endian(int(self.bus.read_register(3001, 0, 4))):04X}'
+    except minimalmodbus.ModbusException:
+      return ''
 
 
   def check_production_date(self, serial):

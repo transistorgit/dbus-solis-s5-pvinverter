@@ -15,6 +15,8 @@ import minimalmodbus
 sys.path.insert(1, os.path.join(os.path.dirname(__file__), "/opt/victronenergy/dbus-systemcalc-py/ext/velib_python",),)
 from vedbus import VeDbusService
 
+Version = 1.2
+
 path_UpdateIndex = '/UpdateIndex'
 
 class s5_inverter:
@@ -212,7 +214,7 @@ def main():
                       ])
 
   try:
-      logging.info("Start Solis S5 Inverter modbus service")
+      logging.info("Start Solis S5 Inverter modbus service v" + str(Version))
 
       if len(sys.argv) > 1:
           port = sys.argv[1]

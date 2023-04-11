@@ -9,15 +9,19 @@ import sys
 import os
 import _thread as thread
 import minimalmodbus
+from time import sleep
 
 # our own packages
 
 sys.path.insert(1, os.path.join(os.path.dirname(__file__), "/opt/victronenergy/dbus-systemcalc-py/ext/velib_python",),)
 from vedbus import VeDbusService
 
-Version = 1.2
+Version = 1.3
 
 path_UpdateIndex = '/UpdateIndex'
+
+class UnknownDeviceException(Exception()):
+  pass
 
 class s5_inverter:
   def __init__(self, port='/dev/ttyUSB0', address=1):
@@ -29,7 +33,7 @@ class s5_inverter:
     #use serial number production code to detect solis inverters
     ser = self.read_serial()
     if not self.check_production_date(ser):
-      raise Exception("Unknown Device")
+      raise UnknownDeviceException
 
     self.registers = {
       # name        : nr , format, factor, unit
@@ -80,7 +84,7 @@ class s5_inverter:
 
 
   def read_serial(self):
-    for _ in range(3):
+    for _ in range(6):
       try:
         serial = {}
         serial["Inverter SN_1"] = self._to_little_endian(int(self.bus.read_register(3060, 0, 4)))
@@ -90,6 +94,7 @@ class s5_inverter:
         serial_str = f'{serial["Inverter SN_1"]:04X}{serial["Inverter SN_2"]:04X}{serial["Inverter SN_3"]:04X}{serial["Inverter SN_4"]:04X}'
         return serial_str
       except minimalmodbus.ModbusException:
+        sleep(1)
         pass
     return ''
 
@@ -214,33 +219,37 @@ def main():
                       ])
 
   try:
-      logging.info("Start Solis S5 Inverter modbus service v" + str(Version))
+    logging.info("Start Solis S5 Inverter modbus service v" + str(Version))
 
-      if len(sys.argv) > 1:
-          port = sys.argv[1]
-      else:
-          logging.error("Error: no port given")
-          exit(1)
+    if len(sys.argv) > 1:
+        port = sys.argv[1]
+    else:
+        logging.error("Error: no port given")
+        exit(1)
 
-      from dbus.mainloop.glib import DBusGMainLoop
-      # Have a mainloop, so we can send/receive asynchronous calls to and from dbus
-      DBusGMainLoop(set_as_default=True)
+    from dbus.mainloop.glib import DBusGMainLoop
+    # Have a mainloop, so we can send/receive asynchronous calls to and from dbus
+    DBusGMainLoop(set_as_default=True)
 
-      portname = port.split('/')[-1]
-      portnumber = int(portname[-1]) if portname[-1].isdigit() else 0
-      pvac_output = DbusSolisS5Service(
-        port = port,
-        servicename = 'com.victronenergy.pvinverter.' + portname,
-        deviceinstance = 288 + portnumber,
-        connection = 'Modbus RTU on ' + port)
+    portname = port.split('/')[-1]
+    portnumber = int(portname[-1]) if portname[-1].isdigit() else 0
+    pvac_output = DbusSolisS5Service(
+      port = port,
+      servicename = 'com.victronenergy.pvinverter.' + portname,
+      deviceinstance = 288 + portnumber,
+      connection = 'Modbus RTU on ' + port)
 
-      logging.info('Connected to dbus, and switching over to gobject.MainLoop() (= event based)')
-      mainloop = gobject.MainLoop()
-      mainloop.run()
+    logging.info('Connected to dbus, and switching over to gobject.MainLoop() (= event based)')
+    mainloop = gobject.MainLoop()
+    mainloop.run()
+
+  except UnknownDeviceException:
+    logging.warning('No Solis Inverter detected, exiting')
+    exit(1)
 
   except Exception as e:
-      logging.critical('Error at %s', 'main', exc_info=e)
-      exit(1)
+    logging.critical('Error at %s', 'main', exc_info=e)
+    exit(1)
 
 if __name__ == "__main__":
   main()

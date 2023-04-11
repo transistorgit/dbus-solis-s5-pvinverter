@@ -20,8 +20,8 @@ Version = 1.3
 
 path_UpdateIndex = '/UpdateIndex'
 
-class UnknownDeviceException(Exception()):
-  pass
+class UnknownDeviceException(Exception):
+  '''Exception to report that no Solis S5 Type inverter was found'''
 
 class s5_inverter:
   def __init__(self, port='/dev/ttyUSB0', address=1):

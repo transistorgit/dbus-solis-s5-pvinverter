@@ -174,10 +174,10 @@ class DbusSolisS5Service:
       gobject.timeout_add(300, self._update) # pause 300ms before the next request
     except UnknownDeviceException:
       logging.warning('No Solis Inverter detected, exiting')
-      exit(1)
+      sys.exit(1)
     except Exception as e:
       logging.critical("Fatal error at %s", 'DbusSolisS5Service.__init', exc_info=e)
-      exit(2)
+      sys.exit(2)
 
   def _update(self):
     try:
@@ -228,7 +228,7 @@ def main():
         port = sys.argv[1]
     else:
         logging.error("Error: no port given")
-        exit(4)
+        sys.exit(4)
 
     from dbus.mainloop.glib import DBusGMainLoop
     # Have a mainloop, so we can send/receive asynchronous calls to and from dbus
@@ -248,7 +248,7 @@ def main():
 
   except Exception as e:
     logging.critical('Error at %s', 'main', exc_info=e)
-    exit(3)
+    sys.exit(3)
 
 if __name__ == "__main__":
   main()

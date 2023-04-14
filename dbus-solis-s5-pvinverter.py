@@ -201,7 +201,22 @@ class DbusSolisS5Service:
       self._dbusservice['/StatusCode']        = self.inverter.read_status()
     except Exception as e:
       logging.info("WARNING: Could not read from Solis S5 Inverter", exc_info=sys.exc_info()[0])
-      self._dbusservice['/Ac/Power'] = 0  # TODO: any better idea to signal an issue?
+      self._dbusservice['/Ac/Power']          = None
+      self._dbusservice['/Ac/Current']        = None
+      self._dbusservice['/Ac/MaxPower']       = None
+      self._dbusservice['/Ac/Energy/Forward'] = None
+      self._dbusservice['/Ac/L1/Voltage']     = None
+      self._dbusservice['/Ac/L2/Voltage']     = None
+      self._dbusservice['/Ac/L3/Voltage']     = None
+      self._dbusservice['/Ac/L1/Current']     = None
+      self._dbusservice['/Ac/L2/Current']     = None
+      self._dbusservice['/Ac/L3/Current']     = None
+      self._dbusservice['/Ac/L1/Power']       = None
+      self._dbusservice['/Ac/L2/Power']       = None
+      self._dbusservice['/Ac/L3/Power']       = None
+      self._dbusservice['/ErrorCode']         = None
+      self._dbusservice['/StatusCode']        = None
+
     # increment UpdateIndex - to show that new data is available
     self._dbusservice[path_UpdateIndex] = (self._dbusservice[path_UpdateIndex] + 1) % 255  # increment index
     return True
